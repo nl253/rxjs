@@ -71,7 +71,7 @@ describe('Observable', () => {
     });
 
     it('should reject promise when in error', (done) => {
-      throwError('bad')
+      throwError(() => ('bad'))
         .forEach(() => {
           done(new Error('should not be called'));
         }, Promise)
@@ -460,7 +460,7 @@ describe('Observable', () => {
             },
           };
 
-          throwError('bad').subscribe(o);
+          throwError(() => ('bad')).subscribe(o);
         }
       );
 
@@ -618,7 +618,7 @@ describe('Observable', () => {
       });
 
       it('should throw synchronously', () => {
-        expect(() => throwError(new Error('thrown error')).subscribe()).to.throw(Error, 'thrown error');
+        expect(() => throwError(() => new Error('thrown error')).subscribe()).to.throw(Error, 'thrown error');
       });
 
       it('should rethrow if next handler throws', () => {
@@ -658,13 +658,13 @@ describe('Observable', () => {
       it('should rethrow synchronous errors from flattened observables', () => {
         expect(() => {
           of(1)
-            .pipe(concatMap(() => throwError(new Error('Ahoy! An error!'))))
+            .pipe(concatMap(() => throwError(() => new Error('Ahoy! An error!'))))
             .subscribe(console.log);
         }).to.throw('Ahoy! An error!');
 
         expect(() => {
           of(1)
-            .pipe(switchMap(() => throwError(new Error('Avast! Thar be a new error!'))))
+            .pipe(switchMap(() => throwError(() => new Error('Avast! Thar be a new error!'))))
             .subscribe(console.log);
         }).to.throw('Avast! Thar be a new error!');
       });
@@ -797,6 +797,35 @@ describe('Observable', () => {
           // do nothing
         }
         expect(results).to.deep.equal([1, 2]);
+      });
+
+      // https://github.com/ReactiveX/rxjs/issues/6271      
+      it('should not have a run-time error if no errors are thrown and there are operators', () => {
+        expect(() => {
+          of(1, 2, 3).pipe(
+            map(x => x + x),
+            map(x => Math.log(x))
+          )
+          .subscribe();
+        }).not.to.throw();
+      });
+
+      it('should call teardown if sync unsubscribed', () => {
+        let called = false;
+        const observable = new Observable(() => () => (called = true));
+        const subscription = observable.subscribe();
+        subscription.unsubscribe();
+
+        expect(called).to.be.true;
+      });
+
+      it('should call registered teardowns if sync unsubscribed', () => {
+        let called = false;
+        const observable = new Observable((subscriber) => subscriber.add(() => called = true));
+        const subscription = observable.subscribe();
+        subscription.unsubscribe();
+
+        expect(called).to.be.true;
       });
 
       afterEach(() => {
